@@ -1,0 +1,58 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Publish
+
+# Controls when the action will run. Triggers the workflow on push of a tag matching the format v*.*.*
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    # The type of runner that the job will run on
+    runs-on: windows-latest
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3
+    - uses: actions/setup-dotnet@v3 
+    - uses: nuget/setup-nuget@v1
+
+    - name: Install cake tool for dotnet core
+      run: dotnet tool install --global Cake.Tool --version 0.37.0
+
+    - name: Get Tag
+      shell: bash
+      run: |
+        echo "RELEASE_VERSION=$( echo $GITHUB_REF | cut -b12- )" >>  $GITHUB_ENV
+
+    - name: Set Version
+      shell: bash
+      run: |
+        echo "Major=$( echo $RELEASE_VERSION | cut -d. -f1 )" >> $GITHUB_ENV
+        echo "Minor=$( echo $RELEASE_VERSION | cut -d. -f2 )" >> $GITHUB_ENV
+        echo "Revision=$( echo $RELEASE_VERSION | cut -d. -f3 )" >> $GITHUB_ENV
+        echo "SemVerSuffix=$( echo $RELEASE_VERSION | cut -d. -f4 )" >> $GITHUB_ENV
+    
+    - name: Cake Script 
+      env:
+        CONFIGIT_SDK_PACKAGES_READ_TOKEN: ${{ secrets.CONFIGIT_SDK_PACKAGES_READ_TOKEN }}
+        CONFIGIT_SDK_PACKAGES_READ_USERNAME: ${{ secrets.CONFIGIT_SDK_PACKAGES_READ_USERNAME }}
+        BOB_PASSWORD: ${{secrets.BOB_PASSWORD}}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: dotnet-cake "./build/build.cake"--target=Release
+
+    - name: Create Release
+      id: create_release
+      uses: ncipollo/release-action@v1
+      with:
+        name: Actions Test Release v${{ env.RELEASE_VERSION }}
+        artifacts: ./build/artifacts/deploy-v$$Major.$Minor.$Revision.zip
+        draft: true
+        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          ## Ci Exemplar - ${{ env.RELEASE_VERSION }}
+          Release notes here.

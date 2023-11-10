@@ -1,0 +1,100 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI Build
+
+# Controls when the action will run. Triggers the workflow on pull request events or on non-tag pushes to master
+on:
+  push:
+    branches:
+      - 'master'
+    ignore-tags:
+      - '*'
+    paths-ignore:
+      - 'docs/**' # Avoid building, if changes is only in docs folder
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    name: Build
+    # The type of runner that the job will run on
+    runs-on: windows-latest
+
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3
+    - uses: actions/setup-dotnet@v3 
+    - uses: nuget/setup-nuget@v1
+
+    - name: Install cake tool for dotnet core
+      run: dotnet tool install --global Cake.Tool --version 2.2.0
+
+    - name: Cake Script 
+      env:
+        CONFIGIT_SDK_PACKAGES_READ_TOKEN: ${{ secrets.CONFIGIT_SDK_PACKAGES_READ_TOKEN }}
+        CONFIGIT_SDK_PACKAGES_READ_USERNAME: ${{ secrets.CONFIGIT_SDK_PACKAGES_READ_USERNAME }}
+        BOB_PASSWORD: ${{secrets.BOB_PASSWORD}}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: dotnet-cake "./build/build.cake"--target=Test
+      
+    - name: Report Test Results
+      uses: MirageNet/nunit-reporter@v1.1.0
+      if: always()
+      with:
+        path: "**/TestResults-*.xml"
+        access-token: ${{ secrets.GITHUB_TOKEN }} 
+
+    - name: Report JS Test Results
+      uses: IgnusG/jest-report-action@v2.3.3
+      if: always()
+      with:
+        junit-file: "../build/artifacts/junit-report.xml"
+        access-token: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: "./car-reg-ui"
+
+  sonarcloud:
+    name: SonarCloud Scan
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      
+      - name: Setup Configit-Sdk nuget Sources
+        # New Package feed for Public packages. Use this for all new projects.
+        shell: powershell
+        run: dotnet nuget add source "https://nuget.pkg.github.com/configit-sdk/index.json" -n "Configit-Sdk" -u "${{secrets.CONFIGIT_SDK_PACKAGES_READ_USERNAME}}" -p "${{ secrets.CONFIGIT_SDK_PACKAGES_READ_TOKEN }}" --store-password-in-clear-text
+      
+      - name: Setup Configit nuget Sources
+        # Legacy package stream (Proget) for packages. Avoid use if possible
+        shell: powershell
+        run: dotnet nuget add source "https://nuget.configit.com/nuget/Configit/" -n "Configit" -u "bob" -p "${{ secrets.BOB_PASSWORD }}" --store-password-in-clear-text
+
+      - name: Restore NPM Packages
+        shell: cmd
+        run: cd D:/a/ci-exemplar/ci-exemplar/car-reg-ui && npm install
+
+      - uses: actions/checkout@v3                            
+        with:
+          repository: configit-services/sonarcloud-dotnet-scanner-action
+          token: ${{ secrets.BISHOP_PRIVATE_ACTION_ACCESS_TOKEN }}                
+          path: .github/actions    
+
+      - uses: actions/setup-java@v3
+        with:
+          java-version: '13.0.2' # Step required as default java version in the runner is deprecated for use with SQ    
+          distribution: 'zulu'
+
+      - name: Sonar Scan
+        uses: ./.github/actions     
+        with:
+          buildCommand: dotnet build ./Configit.CarRegistration.API/Configit.CarRegistration.API.sln /t:Rebuild
+          projectKey: configit-services_ci-exemplar
+          sonarToken: ${{ secrets.SONAR_TOKEN }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          beginArguments: >
+            /d:sonar.verbose="true" 
+            /d:sonar.projectBaseDir="D:/a/ci-exemplar/ci-exemplar" 
+            /d:sonar.sources="D:/a/ci-exemplar/ci-exemplar/car-reg-ui"
