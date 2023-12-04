@@ -20,7 +20,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         ref: master
-    - uses: actions/setup-dotnet@v3 
+    - uses: actions/setup-dotnet@v4 
     - uses: nuget/setup-nuget@v1
 
     - name: Install cake tool for dotnet core
