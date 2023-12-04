@@ -82,7 +82,7 @@ jobs:
           token: ${{ secrets.BISHOP_PRIVATE_ACTION_ACCESS_TOKEN }}                
           path: .github/actions    
 
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         with:
           java-version: '13.0.2' # Step required as default java version in the runner is deprecated for use with SQ    
           distribution: 'zulu'
