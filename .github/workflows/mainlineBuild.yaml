@@ -21,7 +21,7 @@ jobs:
       with:
         ref: master
     - uses: actions/setup-dotnet@v3 
-    - uses: nuget/setup-nuget@v1
+    - uses: nuget/setup-nuget@v2
 
     - name: Install cake tool for dotnet core
       run: dotnet tool install --global Cake.Tool --version 0.37.0
