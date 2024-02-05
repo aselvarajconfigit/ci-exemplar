@@ -25,7 +25,7 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v3
     - uses: actions/setup-dotnet@v3 
-    - uses: nuget/setup-nuget@v1
+    - uses: nuget/setup-nuget@v2
 
     - name: Install cake tool for dotnet core
       run: dotnet tool install --global Cake.Tool --version 2.2.0
